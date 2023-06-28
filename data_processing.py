@@ -99,8 +99,8 @@ def clean(file_paths, num_quads=4924, split_prop=0.3):
       value is 0.3, so 30% will be used on testing and 70% will be used on
        training)
     """
-    data_t1 = _load_data(file_paths[0])
-    data_t2 = _load_data(file_paths[1])
+    data_t1 = _load_data(file_paths[0], num_quads)
+    data_t2 = _load_data(file_paths[1], num_quads)
     data_t1, data_t2 = encode_drop_null(data_t1, data_t2)
     data_t2 = growth_labels(data_t1, data_t2)
     return split(data_t1, data_t2, split_prop)
