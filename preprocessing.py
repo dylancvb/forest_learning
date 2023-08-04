@@ -7,7 +7,6 @@ to be run through machine learning models.
 import numpy as np
 import scipy as sp
 import pandas as pd
-from sklearn.model_selection import train_test_split
 import category_encoders as ce
 
 
