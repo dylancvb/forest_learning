@@ -3,12 +3,16 @@ A script to process and clean forest census data so that it is prepared
 to be run through machine learning models.
  
 """
-
 import numpy as np
 import scipy as sp
 import pandas as pd
 import category_encoders as ce
 
+
+# def preprocess(file_path, quads):
+#     raw_data = pd.read_csv(file_path)
+#     raw_data =  raw_data.loc[raw_data['quadrat'] <= quads]
+#     return 1
 
 def _load_data(file_path, quads):
     """
@@ -120,4 +124,15 @@ def clean(file_paths, num_quads=4924, split_prop=0.3):
     print("data-t2 is"+str(type(data_t1)))
     data_t1, data_t2 = encode_drop_null(data_t1, data_t2)
     data_t2 = growth_labels(data_t1, data_t2)
-    return split(data_t1, data_t2, split_prop)
+    # don't return this type of split, just return the cleaned x and y data!!
+
+    # can do this in another function.
+
+    # return split(data_t1, data_t2, split_prop)
+
+
+# another function should be making distance matrices
+
+# another function should be the permutations of this
+
+# another fn should be framework for printing and creating graphs!!
