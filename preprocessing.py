@@ -57,9 +57,10 @@ def encode_drop_null(t1: pd.DataFrame, t2: pd.DataFrame):
     # print("t2 is"+str(type(t2_clean)))
 
     # encode the species into categorical data rather than strings
-    encoder = ce.BinaryEncoder(cols=['sp'], return_df=True)
+    encoder = ce.OneHotEncoder(cols=['sp'], return_df=True)
 
     t1_clean = encoder.fit_transform(t1_clean)
+
     ds_combined = pd.concat([t1_clean, t2_clean], axis=1)
     print(type(ds_combined))
 
@@ -136,3 +137,115 @@ def clean(file_paths, num_quads=4924, split_prop=0.3):
 # another function should be the permutations of this
 
 # another fn should be framework for printing and creating graphs!!
+
+
+# load all data
+def returndataframe(t1filepath, t2filepath, quadrats=-1):
+    t1 = pd.read_csv(t1filepath)
+    t2 = pd.read_csv(t2filepath)
+
+    if quadrats > 0:
+        t1 = t1.loc[t1['quadrat'] <= quadrats]
+        t2 = t2.loc[t2['quadrat'] <= quadrats]
+
+    featurest1 = t1[['treeID', 'sp', 'dbh', 'gx', 'gy']]
+    featurest1 = featurest1.rename(
+        columns={"dbh": "dbh1", "treeID": "treeID1"})
+
+    expected_labels = t2[['treeID', 'dbh']]
+    expected_labels = expected_labels.rename(
+        columns={"dbh": "dbh2", "treeID": "treeID2"})
+
+    # referred to as a in ensemble_model
+    sp_num = featurest1.sp.unique().shape[0]
+
+    encoder = ce.OneHotEncoder(cols=['sp'], return_df=True)
+    featurest1 = encoder.fit_transform(featurest1)
+
+    df_combined = pd.concat([featurest1, expected_labels], axis=1)
+    df_combined_clean = df_combined.dropna()
+
+    # right now, just eliminate all data points where expected labels are less than 0
+    df_combined_clean['dbh2'] = df_combined_clean['dbh2'] - \
+        df_combined_clean['dbh1']
+
+    df_combined_clean = df_combined_clean[df_combined_clean.dbh2 >= 0]
+
+    # split back up and convert the dataframes to numpy arrays
+    df_clean = df_combined_clean[featurest1.columns]
+    labels_clean = df_combined_clean[expected_labels.columns]
+
+    featurest1 = df_clean.to_numpy()
+    expected_labels = labels_clean.to_numpy()
+
+    featurest1 = featurest1.astype(np.float32)
+    expected_labels = expected_labels.astype(np.float32)
+
+    return featurest1, expected_labels, sp_num
+
+
+def get_neighborhood(feats, sp_num, num_neighbors):
+    ids = feats[:, 0]
+    # X WOULD BE a +1, y would be a+2
+    x_coordinates = feats[:, sp_num+2]
+    y_coordinates = feats[:, sp_num+3]
+    coord_matrix = np.column_stack((x_coordinates, y_coordinates))
+    spatial_tree = sp.spatial.KDTree(coord_matrix)
+
+    nn_dist_matrix2 = np.zeros((len(coord_matrix), num_neighbors+1))
+    nn_ind_matrix2 = np.zeros((len(coord_matrix), num_neighbors+1))
+    nn_feats = feats[:, 0:sp_num+2]
+    feats_matrix = np.zeros(
+        (len(coord_matrix), ((num_neighbors+1)*(sp_num+2))))
+
+    for i, tree in enumerate(coord_matrix):
+        dist, ind = spatial_tree.query(tree, k=num_neighbors+1)
+        nn_ind_matrix2[i] = ids[ind]
+        nn_dist_matrix2[i] = dist
+
+        nn_row = nn_feats[i].reshape(1, sp_num+2)
+        inc = 0
+        for j in nn_ind_matrix2[i][1:]:
+            row_ind = np.where(feats[:, 0] == j)
+            real_row = (feats[row_ind])
+            distance = dist[1:][inc].reshape(1, 1)
+            dbh = real_row[:, sp_num+1].reshape(1, 1)
+            nn_row = np.hstack(
+                (nn_row, distance, real_row[:, 1:sp_num+1], dbh))
+            inc += 1
+
+        feats_matrix[i] = nn_row
+
+    return feats_matrix
+
+
+def neighborhood_naive(feats, sp_num):
+    # check if tree species = tree species of neighbor. if yes, 1. if no, 0.
+    feats[:, 1:(sp_num+1)]
+
+
+def preparedata(feats, labels, sp_num, whichlevel: int):
+
+    labels = labels[:, 1]
+
+    if whichlevel == 1:
+        # just DBH, no species information at all
+
+        feats = feats[:, (sp_num+1)]
+
+    if whichlevel == 2:
+        feats = feats[:, 1:]
+        # DBH and species information
+
+    if whichlevel == 3:
+        # full neighborhood information
+        num_neighbors = 20
+        feats = get_neighborhood(feats, sp_num, num_neighbors)
+        return
+
+    if whichlevel == 4:
+
+        # neighborhood with only "same" or "different" species
+        return
+
+    return feats, labels
