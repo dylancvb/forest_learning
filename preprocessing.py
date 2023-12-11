@@ -1,7 +1,7 @@
 """
 A script to process and clean forest census data so that it is prepared
 to be run through machine learning models.
- 
+
 """
 import numpy as np
 import scipy as sp
@@ -111,11 +111,11 @@ def clean(file_paths, num_quads=4924, split_prop=0.3):
 
     Parameters
     ----------
-    file_paths: a tuple of two filepaths, the first being that of the initial 
+    file_paths: a tuple of two filepaths, the first being that of the initial
       dataset and the second the path of the later dataset
     num_quads: the number of quadrats to consider (default: 4924, the entire
       dataset when looking at BCI specifically)
-    split: the proportion of the data that should be used for testing (default 
+    split: the proportion of the data that should be used for testing (default
       value is 0.3, so 30% will be used on testing and 70% will be used on
        training)
     """
@@ -185,38 +185,94 @@ def returndataframe(t1filepath, t2filepath, quadrats=-1):
 
 
 def get_neighborhood(feats, sp_num, num_neighbors):
+
     ids = feats[:, 0]
-    # X WOULD BE a +1, y would be a+2
     x_coordinates = feats[:, sp_num+2]
     y_coordinates = feats[:, sp_num+3]
     coord_matrix = np.column_stack((x_coordinates, y_coordinates))
-    spatial_tree = sp.spatial.KDTree(coord_matrix)
+    spatial_tree = sp.spatial.cKDTree(coord_matrix)
 
-    nn_dist_matrix2 = np.zeros((len(coord_matrix), num_neighbors+1))
-    nn_ind_matrix2 = np.zeros((len(coord_matrix), num_neighbors+1))
-    nn_feats = feats[:, 0:sp_num+2]
-    feats_matrix = np.zeros(
-        (len(coord_matrix), ((num_neighbors+1)*(sp_num+2))))
+    # just returns the correct ones! yay!
+    neighbors = range(num_neighbors+2)[2:]
+    dist_matrix, ind_matrix = spatial_tree.query(coord_matrix, k=neighbors)
 
-    for i, tree in enumerate(coord_matrix):
-        dist, ind = spatial_tree.query(tree, k=num_neighbors+1)
-        nn_ind_matrix2[i] = ids[ind]
-        nn_dist_matrix2[i] = dist
+    # index 0 is ID, index sp_num+1 is DBH
+    its_own_info = (feats[:, 1:sp_num+2])
 
-        nn_row = nn_feats[i].reshape(1, sp_num+2)
-        inc = 0
-        for j in nn_ind_matrix2[i][1:]:
-            row_ind = np.where(feats[:, 0] == j)
-            real_row = (feats[row_ind])
-            distance = dist[1:][inc].reshape(1, 1)
-            dbh = real_row[:, sp_num+1].reshape(1, 1)
-            nn_row = np.hstack(
-                (nn_row, distance, real_row[:, 1:sp_num+1], dbh))
-            inc += 1
+    real_rows = feats[ind_matrix]
 
-        feats_matrix[i] = nn_row
+    # remove the index line, not helpful
+    real_rows = real_rows[:, :, 1:sp_num+2]
+
+    dist_matrix = dist_matrix[:, :, np.newaxis]
+
+    is_this_right = np.concatenate((dist_matrix, real_rows), axis=2)
+
+    this_size = np.shape(is_this_right)
+
+    feats_matrix_maybe = is_this_right.reshape(
+        (this_size[0], this_size[1]*this_size[2]))
+
+    feats_matrix = np.hstack((its_own_info, feats_matrix_maybe))
 
     return feats_matrix
+
+    # nn_dist_matrix2 = np.zeros((len(coord_matrix), num_neighbors+1))
+    # nn_ind_matrix2 = np.zeros((len(coord_matrix), num_neighbors+1))
+    # nn_feats = feats[:, 0:sp_num+2]
+    # feats_matrix = np.zeros(
+    #      (len(coord_matrix), ((num_neighbors+1)*(sp_num+2))))
+
+    # print(np.shape(coord_matrix))
+
+    # print(type(enumerate(coord_matrix)))
+    # #query num_neighbors+1 because the first closest will be itself
+    # dist_matrix, ind_matrix = spatial_tree.query(
+    #     coord_matrix, k=num_neighbors+1)
+
+    # for i, tree in enumerate(coord_matrix):
+    #     print(i)
+    #     print(tree)
+    #     dist, ind = spatial_tree.query(tree, k=num_neighbors+1)
+    #     nn_ind_matrix2[i] = ids[ind]
+    #     nn_dist_matrix2[i] = dist
+
+    #     nn_row = nn_feats[i].reshape(1, sp_num+2)
+    #     inc = 0
+    #     for j in nn_ind_matrix2[i][1:]:
+    #         row_ind = np.where(feats[:, 0] == j)
+    #         real_row = (feats[row_ind])
+    #         distance = dist[1:][inc].reshape(1, 1)
+    #         dbh = real_row[:, sp_num+1].reshape(1, 1)
+    #         nn_row = np.hstack(
+    #             (nn_row, distance, real_row[:, 1:sp_num+1], dbh))
+    #         inc += 1
+
+    #     feats_matrix[i] = nn_row
+
+    # return feats_matrix
+
+    # BELOW TRYING TO VECTORIZE - CURRENTLY NOT WORKING!!
+
+    # Query the spatial tree for all points at once
+    # spatial_tree = sp.spatial.cKDTree(coord_matrix)
+
+    # nn_dist_matrix2, nn_ind_matrix2 = spatial_tree.query(
+    #     coord_matrix, k=num_neighbors+1)
+    # nn_feats = feats[:, :sp_num+2]
+
+    # real_rows = feats[ind_matrix]
+
+    # dbh_values = real_rows[:, :, sp_num+1].reshape((-1, num_neighbors, 1))
+
+    # nn_feats_reshaped = nn_feats[:, np.newaxis, :]  # Add a new axis
+
+    # nn_rows = np.concatenate(
+    #     (nn_feats_reshaped, distances, real_rows[:, :, 1:sp_num + 1], dbh_values), axis=2)
+
+    # feats_matrix = nn_rows.reshape(len(coord_matrix), -1)
+
+    # return feats_matrix
 
 
 def neighborhood_naive(feats, sp_num):
@@ -241,7 +297,7 @@ def preparedata(feats, labels, sp_num, whichlevel: int):
         # full neighborhood information
         num_neighbors = 20
         feats = get_neighborhood(feats, sp_num, num_neighbors)
-        return
+        print("return")
 
     if whichlevel == 4:
 
