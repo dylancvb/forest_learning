@@ -132,8 +132,6 @@ def clean(file_paths, num_quads=4924, split_prop=0.3):
     # return split(data_t1, data_t2, split_prop)
 
 
-# another function should be making distance matrices
-
 # another function should be the permutations of this
 
 # another fn should be framework for printing and creating graphs!!
@@ -182,6 +180,61 @@ def returndataframe(t1filepath, t2filepath, quadrats=-1):
     expected_labels = expected_labels.astype(np.float32)
 
     return featurest1, expected_labels, sp_num
+
+
+def make_dict(n, sp_num):
+    # where n is how many arrays i want
+    b = sp_num + 2
+    var_dict = {}
+    pref = "indices_"
+    for i in range(n):
+        current = pref + (str(i))
+        lst = list(range((i+1)*b, (i+2)*b))
+        var_dict[current] = lst
+    return var_dict
+
+
+def add_permutations(feats, sp_num, num_neighbors, num_perms=10):
+
+    rng = np.random.default_rng()
+    matrix_order = np.zeros((num_perms, num_neighbors))
+    shuffle_this = np.array(range(num_neighbors))
+    for i in range(num_perms):
+        current_row = rng.permutation(shuffle_this)
+        matrix_order[i] = current_row
+
+    matrix_order = matrix_order.astype(int)
+
+    var_dict = make_dict(num_neighbors, sp_num)
+    indices = np.array(list(var_dict.values()))
+    foobar = indices[matrix_order]
+
+    print("foobar has been made")
+
+    # MAKE BELOW NICER!!!!
+    feats_matrix_big = feats.copy()
+
+    for i in range(num_perms):
+        # loop through each permutation.
+        feats_matrix_small = feats.copy()
+        flattened = []
+        print("making permutation")
+    # loop through each neighbor (each row)
+        for j in range(foobar[i, :, :].shape[0]):
+            # for item in sublist:
+            for foo in foobar[i, j, :]:
+                flattened.append(foo)
+
+        flattened = list(range(sp_num+1))+flattened
+        print(len(flattened))
+
+    #  for sublist in perm_indices:
+    # test out what flattened looks like and why there is an index error
+
+        feats_matrix_small = feats_matrix_small[:, flattened]
+        feats_matrix_big = np.vstack((feats_matrix_big, feats_matrix_small))
+
+    return feats_matrix_big
 
 
 def get_neighborhood(feats, sp_num, num_neighbors):
@@ -252,28 +305,6 @@ def get_neighborhood(feats, sp_num, num_neighbors):
 
     # return feats_matrix
 
-    # BELOW TRYING TO VECTORIZE - CURRENTLY NOT WORKING!!
-
-    # Query the spatial tree for all points at once
-    # spatial_tree = sp.spatial.cKDTree(coord_matrix)
-
-    # nn_dist_matrix2, nn_ind_matrix2 = spatial_tree.query(
-    #     coord_matrix, k=num_neighbors+1)
-    # nn_feats = feats[:, :sp_num+2]
-
-    # real_rows = feats[ind_matrix]
-
-    # dbh_values = real_rows[:, :, sp_num+1].reshape((-1, num_neighbors, 1))
-
-    # nn_feats_reshaped = nn_feats[:, np.newaxis, :]  # Add a new axis
-
-    # nn_rows = np.concatenate(
-    #     (nn_feats_reshaped, distances, real_rows[:, :, 1:sp_num + 1], dbh_values), axis=2)
-
-    # feats_matrix = nn_rows.reshape(len(coord_matrix), -1)
-
-    # return feats_matrix
-
 
 def neighborhood_naive(feats, sp_num):
     # check if tree species = tree species of neighbor. if yes, 1. if no, 0.
@@ -296,8 +327,12 @@ def preparedata(feats, labels, sp_num, whichlevel: int):
     if whichlevel == 3:
         # full neighborhood information
         num_neighbors = 20
+        num_perms = 10
         feats = get_neighborhood(feats, sp_num, num_neighbors)
-        print("return")
+        print("initial, non-permuted tree done")
+
+        # feats = add_permutations(feats, sp_num, num_neighbors, num_perms)
+        # labels = np.tile(labels, (num_perms+1))
 
     if whichlevel == 4:
 
